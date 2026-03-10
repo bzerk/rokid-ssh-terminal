@@ -1,36 +1,30 @@
-# Rokid Terminal
+# Rokid SSH Terminal
 
-Glasses-native SSH and tmux control surface for Rokid glasses.
+Glasses-native SSH terminal and tmux control surface for Rokid glasses.
 
-## Current state
+This project now targets a single sideloaded glasses app. There is no phone companion in the active launcher flow. The app connects directly over Wi-Fi to a remote machine via SSH and provides two focused surfaces:
 
-This workspace has been pivoted away from the original `clawsses` phone-companion flow.
+- `ControlSurfaceActivity` for directional-navigation session management
+- `TerminalActivity` for a real interactive SSH terminal
 
-The buildable path is now:
+## Features
 
-- single sideloaded glasses app
-- direct SSH over Wi-Fi
-- strict green-on-black HUD
-- boxed focus states for directional navigation
-- control-surface launcher activity
-- terminal activity for live tmux pane viewing and command send
+- Direct SSH from the glasses over Wi-Fi
+- Password auth or pasted private-key auth
+- TOFU host fingerprint persistence and mismatch rejection
+- tmux-first workflow for list/create/select/attach
+- Full terminal rendering through `org.connectbot:termlib`
+- Green-on-black glasses-native UI with explicit boxed focus states
+- Bluetooth-keyboard-friendly terminal path
 
-## What works in this revision
+## Current App Structure
 
-- Launches into a new `ControlSurfaceActivity`
-- Stores SSH settings locally on-device
-- Connects directly to a remote host with password or pasted private key auth
-- Trusts the first seen host key fingerprint and rejects later mismatches
-- Lists tmux sessions
-- Creates tmux sessions
-- Cycles or selects the active tmux session
-- Opens a terminal screen that refreshes the active tmux pane and sends commands
-
-## Known gaps
-
-- Terminal rendering is currently line-oriented tmux pane capture, not full ANSI/VT emulation yet
-- The old phone/glasses bridge code is still present in the repo but no longer used by the launcher flow
-- Voice, camera, TTS, and companion-app behaviors are intentionally out of scope in this revision
+- `glasses-app`
+  - active launcher and active product surface
+- `shared`
+  - retained protocol models and shared support code
+- `phone-app`
+  - legacy code from the original `clawsses` architecture, not part of the current glasses-only launcher flow
 
 ## Build
 
@@ -44,8 +38,30 @@ APK output:
 glasses-app/build/outputs/apk/debug/glasses-app-debug.apk
 ```
 
-## Runtime notes
+## Install
 
-- `tmux` must be installed on the remote host
-- Bluetooth keyboard support is assumed for serious terminal use
-- The app stores SSH settings in on-device shared preferences under `rokid_terminal`
+```bash
+adb install -r glasses-app/build/outputs/apk/debug/glasses-app-debug.apk
+adb shell am start -n com.bzerk.rokidterminal/com.clawsses.glasses.ControlSurfaceActivity
+```
+
+## Runtime Notes
+
+- `tmux` should be installed on the remote host
+- SSH settings are stored on-device in `SharedPreferences` under `rokid_terminal`
+- Bluetooth keyboard input is strongly recommended for real terminal use
+- The current dev build is debug-signed and intended for sideload testing
+
+## Public Repo Notes
+
+- Local secrets are intentionally not committed
+- `local.properties` is ignored
+- Rokid SDK credentials, if needed for legacy code paths, must be supplied locally and are not included here
+
+## TODO
+
+- Make terminal font size user-scalable from the on-device UI, or reduce the default density for the Rokid display
+- Use the display width and height more efficiently so shell content wastes less screen real estate
+- Add an in-app SSH key generation/import flow instead of ad-hoc provisioning
+- Add a better first-run settings experience for host, username, and auth mode
+- Tighten the remaining legacy-module cleanup so the repo reflects the glasses-only architecture more clearly
