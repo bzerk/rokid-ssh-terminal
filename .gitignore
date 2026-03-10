@@ -18,6 +18,7 @@ DEVELOPER_BRIEFING.md
 .gradle/
 .kotlin/
 build/
+dist/
 *.iml
 captures/
 .externalNativeBuild/
