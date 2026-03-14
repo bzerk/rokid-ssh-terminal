@@ -258,12 +258,6 @@ private fun ControlSurfaceScreen(
             }
         }
     }
-
-    LaunchedEffect(Unit) {
-        if (connectionState is ConnectionState.Disconnected && savedConfig.host.isNotBlank()) {
-            manager.refreshSessions()
-        }
-    }
 }
 
 @Composable

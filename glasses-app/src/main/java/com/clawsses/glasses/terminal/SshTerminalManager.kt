@@ -145,6 +145,10 @@ class SshTerminalManager(
 
     suspend fun refreshSessions(): Result<List<TmuxSessionInfo>> = withContext(Dispatchers.IO) {
         ioMutex.withLock {
+            if (!isSshConnected()) {
+                _sessions.value = emptyList()
+                return@withContext Result.success(emptyList())
+            }
             val result = runExec(
                 "tmux list-sessions -F '#{session_name}\\t#{session_windows}\\t#{session_attached}\\t#{session_activity}' 2>/dev/null || true"
             )
@@ -163,6 +167,9 @@ class SshTerminalManager(
 
     suspend fun createSession(name: String? = null): Result<String> = withContext(Dispatchers.IO) {
         ioMutex.withLock {
+            if (!isSshConnected()) {
+                return@withContext Result.failure(IllegalStateException("SSH session is not connected"))
+            }
             val newName = name?.trim().takeUnless { it.isNullOrEmpty() }
                 ?: "rokid-${SimpleDateFormat("HHmmss", Locale.US).format(Date())}"
             runExec("tmux new-session -d -s ${shellQuote(newName)}")
@@ -176,6 +183,9 @@ class SshTerminalManager(
 
     suspend fun selectSession(name: String): Result<Unit> = withContext(Dispatchers.IO) {
         ioMutex.withLock {
+            if (!isSshConnected()) {
+                return@withContext Result.failure(IllegalStateException("SSH session is not connected"))
+            }
             _activeSession.value = name
             settingsStore.saveActiveSession(name)
             refreshSnapshot()
@@ -185,6 +195,9 @@ class SshTerminalManager(
 
     suspend fun cycleSession(direction: Int): Result<Unit> = withContext(Dispatchers.IO) {
         ioMutex.withLock {
+            if (!isSshConnected()) {
+                return@withContext Result.failure(IllegalStateException("SSH session is not connected"))
+            }
             val available = _sessions.value
             if (available.isEmpty()) return@withContext Result.failure(IllegalStateException("No tmux sessions"))
             val currentIndex = available.indexOfFirst { it.name == _activeSession.value }.coerceAtLeast(0)
@@ -198,6 +211,9 @@ class SshTerminalManager(
 
     suspend fun sendCommand(command: String): Result<Unit> = withContext(Dispatchers.IO) {
         ioMutex.withLock {
+            if (!isSshConnected()) {
+                return@withContext Result.failure(IllegalStateException("SSH session is not connected"))
+            }
             val trimmed = command.trim()
             if (trimmed.isEmpty()) {
                 return@withContext Result.failure(IllegalArgumentException("Command is empty"))
@@ -218,6 +234,9 @@ class SshTerminalManager(
 
     suspend fun refreshSnapshot(lines: Int = 160): Result<String> = withContext(Dispatchers.IO) {
         ioMutex.withLock {
+            if (!isSshConnected()) {
+                return@withContext Result.failure(IllegalStateException("SSH session is not connected"))
+            }
             val target = _activeSession.value
                 ?: return@withContext Result.failure(IllegalStateException("No active tmux session"))
             val result = runExec(
@@ -267,6 +286,10 @@ class SshTerminalManager(
 
     private fun shellQuote(value: String): String {
         return "'" + value.replace("'", "'\"'\"'") + "'"
+    }
+
+    private fun isSshConnected(): Boolean {
+        return session?.isConnected == true
     }
 
     private suspend fun runExec(command: String): ExecResult = withContext(Dispatchers.IO) {

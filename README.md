@@ -52,6 +52,12 @@ adb shell am start -n com.bzerk.rokidterminal/com.clawsses.glasses.ControlSurfac
 - Bluetooth keyboard input is strongly recommended for real terminal use
 - The current dev build is debug-signed and intended for sideload testing
 
+## Handover
+
+For moving this project and workflow to another machine, use:
+
+- `docs/HANDOVER.md`
+
 ## Public Repo Notes
 
 - Local secrets are intentionally not committed
