@@ -51,6 +51,14 @@ class SettingsStore(context: Context) {
         prefs.edit().putString(KEY_ACTIVE_SESSION, name).apply()
     }
 
+    fun loadFontSize(): Float {
+        return prefs.getFloat(KEY_FONT_SIZE, 10f)
+    }
+
+    fun saveFontSize(size: Float) {
+        prefs.edit().putFloat(KEY_FONT_SIZE, size).apply()
+    }
+
     private fun fingerprintKey(host: String, port: Int, username: String): String {
         return "fp:${host.trim()}:${port}:${username.trim()}"
     }
@@ -64,5 +72,6 @@ class SettingsStore(context: Context) {
         const val KEY_PASSPHRASE = "passphrase"
         const val KEY_AUTO_ATTACH = "auto_attach"
         const val KEY_ACTIVE_SESSION = "active_session"
+        const val KEY_FONT_SIZE = "font_size"
     }
 }

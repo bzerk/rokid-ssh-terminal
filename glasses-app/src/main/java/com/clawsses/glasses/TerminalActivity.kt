@@ -6,8 +6,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,9 +19,18 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,6 +61,12 @@ private fun TerminalScreen(
 ) {
     val connectionState by controller.connectionState.collectAsState()
     val statusText by controller.statusText.collectAsState()
+    val settingsStore = GlassesApp.instance.settingsStore
+    var fontSize by rememberSaveable { mutableFloatStateOf(settingsStore.loadFontSize()) }
+
+    LaunchedEffect(fontSize) {
+        settingsStore.saveFontSize(fontSize)
+    }
 
     LaunchedEffect(Unit) {
         controller.connect()
@@ -67,99 +80,67 @@ private fun TerminalScreen(
 
     BackHandler(onBack = goBack)
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black).padding(12.dp)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Surface(
-                color = Color.Black,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(2.dp, Color(0xFF00FF00))
-            ) {
-                Column(modifier = Modifier.padding(10.dp)) {
-                    Text(
-                        text = "TERMINAL",
-                        color = Color(0xFF00FF00),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 20.sp
-                    )
-                    Text(
-                        text = statusText,
-                        color = when (connectionState) {
-                            is ConnectionState.Error -> Color(0xFFFF6666)
-                            else -> Color(0xFF88CC88)
-                        },
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        maxLines = 2
-                    )
-                    Text(
-                        text = "Back leaves terminal  Keyboard sends raw input  tmux auto-attach on connect",
-                        color = Color(0xFF66FFCC),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 10.sp,
-                        maxLines = 2
-                    )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .padding(4.dp)
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown || !event.isCtrlPressed) return@onPreviewKeyEvent false
+                when (event.key) {
+                    Key.Equals, Key.NumPadAdd -> { fontSize = (fontSize + 1f).coerceAtMost(24f); true }
+                    Key.Minus, Key.NumPadSubtract -> { fontSize = (fontSize - 1f).coerceAtLeast(6f); true }
+                    else -> false
                 }
             }
-            Spacer(modifier = Modifier.height(10.dp))
-            Surface(
-                color = Color.Black,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .border(2.dp, Color(0xFF00FF00))
-            ) {
+    ) {
+        Text(
+            text = "font:${fontSize.toInt()}  $statusText",
+            color = when (connectionState) {
+                is ConnectionState.Error -> Color(0xFFFF6666)
+                else -> Color(0xFF00FF00)
+            },
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Surface(
+            color = Color.Black,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            key(fontSize) {
                 Terminal(
                     terminalEmulator = controller.emulator,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(4.dp),
                     typeface = Typeface.MONOSPACE,
-                    initialFontSize = 10.sp,
-                    minFontSize = 8.sp,
-                    maxFontSize = 18.sp,
+                    initialFontSize = fontSize.sp,
+                    minFontSize = 6.sp,
+                    maxFontSize = 24.sp,
                     backgroundColor = Color.Black,
-                    foregroundColor = Color(0xFFB8FFB8),
+                    foregroundColor = Color.White,
                     keyboardEnabled = connectionState is ConnectionState.Connected,
                     showSoftKeyboard = false,
                     onTerminalTap = {},
                     forcedSize = null
                 )
             }
-            if (connectionState is ConnectionState.Error) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Surface(
-                    color = Color.Black,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(2.dp, Color(0xFFFF6666))
-                ) {
-                    Text(
-                        text = (connectionState as ConnectionState.Error).message,
-                        color = Color(0xFFFF8888),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        lineHeight = 14.sp,
-                        modifier = Modifier.padding(10.dp)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(2.dp, Color(0xFF226622))
-                    .padding(8.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Text(
-                    text = "Bluetooth keyboard recommended. Arrow keys go to the shell here, not surface navigation.",
-                    color = Color(0xFF88CC88),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp,
-                    lineHeight = 13.sp
-                )
-            }
+        }
+        if (connectionState is ConnectionState.Error) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = (connectionState as ConnectionState.Error).message,
+                color = Color(0xFFFF8888),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp,
+                maxLines = 2,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
         }
     }
 }
