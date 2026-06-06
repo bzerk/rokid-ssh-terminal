@@ -13,9 +13,7 @@ class SettingsStore(context: Context) {
             username = prefs.getString(KEY_USERNAME, "") ?: "",
             password = prefs.getString(KEY_PASSWORD, "") ?: "",
             privateKey = prefs.getString(KEY_PRIVATE_KEY, "") ?: "",
-            passphrase = prefs.getString(KEY_PASSPHRASE, "") ?: "",
-            autoAttachCommand = prefs.getString(KEY_AUTO_ATTACH, "tmux attach || tmux new")
-                ?: "tmux attach || tmux new"
+            passphrase = prefs.getString(KEY_PASSPHRASE, "") ?: ""
         )
     }
 
@@ -27,13 +25,11 @@ class SettingsStore(context: Context) {
             .putString(KEY_PASSWORD, config.password)
             .putString(KEY_PRIVATE_KEY, config.privateKey)
             .putString(KEY_PASSPHRASE, config.passphrase)
-            .putString(KEY_AUTO_ATTACH, config.autoAttachCommand.trim())
             .apply()
     }
 
-    fun loadTrustedFingerprint(host: String, port: Int, username: String): String? {
-        return prefs.getString(fingerprintKey(host, port, username), null)
-    }
+    fun loadTrustedFingerprint(host: String, port: Int, username: String): String? =
+        prefs.getString(fingerprintKey(host, port, username), null)
 
     fun saveTrustedFingerprint(host: String, port: Int, username: String, fingerprint: String) {
         prefs.edit().putString(fingerprintKey(host, port, username), fingerprint).apply()
@@ -43,25 +39,14 @@ class SettingsStore(context: Context) {
         prefs.edit().remove(fingerprintKey(host, port, username)).apply()
     }
 
-    fun loadActiveSession(): String? {
-        return prefs.getString(KEY_ACTIVE_SESSION, null)
-    }
-
-    fun saveActiveSession(name: String?) {
-        prefs.edit().putString(KEY_ACTIVE_SESSION, name).apply()
-    }
-
-    fun loadFontSize(): Float {
-        return prefs.getFloat(KEY_FONT_SIZE, 10f)
-    }
+    fun loadFontSize(): Float = prefs.getFloat(KEY_FONT_SIZE, 10f)
 
     fun saveFontSize(size: Float) {
         prefs.edit().putFloat(KEY_FONT_SIZE, size).apply()
     }
 
-    private fun fingerprintKey(host: String, port: Int, username: String): String {
-        return "fp:${host.trim()}:${port}:${username.trim()}"
-    }
+    private fun fingerprintKey(host: String, port: Int, username: String) =
+        "fp:${host.trim()}:$port:${username.trim()}"
 
     private companion object {
         const val KEY_HOST = "host"
@@ -70,8 +55,6 @@ class SettingsStore(context: Context) {
         const val KEY_PASSWORD = "password"
         const val KEY_PRIVATE_KEY = "private_key"
         const val KEY_PASSPHRASE = "passphrase"
-        const val KEY_AUTO_ATTACH = "auto_attach"
-        const val KEY_ACTIVE_SESSION = "active_session"
         const val KEY_FONT_SIZE = "font_size"
     }
 }

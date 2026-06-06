@@ -34,8 +34,10 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.clawsses.glasses.local.LocalTerminalController
 import com.clawsses.glasses.terminal.ConnectionState
 import com.clawsses.glasses.terminal.InteractiveTerminalController
+import com.clawsses.glasses.terminal.TerminalController
 import com.clawsses.glasses.ui.theme.GlassesHudTheme
 import org.connectbot.terminal.Terminal
 
@@ -43,20 +45,27 @@ class TerminalActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val localMode = intent.getBooleanExtra(EXTRA_LOCAL_MODE, false)
+        val controller: TerminalController = if (localMode) {
+            LocalTerminalController(this)
+        } else {
+            InteractiveTerminalController(GlassesApp.instance.settingsStore)
+        }
         setContent {
             GlassesHudTheme {
-                TerminalScreen(
-                    controller = InteractiveTerminalController(GlassesApp.instance.settingsStore),
-                    goBack = { finish() }
-                )
+                TerminalScreen(controller = controller, goBack = { finish() })
             }
         }
+    }
+
+    companion object {
+        const val EXTRA_LOCAL_MODE = "local_mode"
     }
 }
 
 @Composable
 private fun TerminalScreen(
-    controller: InteractiveTerminalController,
+    controller: TerminalController,
     goBack: () -> Unit
 ) {
     val connectionState by controller.connectionState.collectAsState()
@@ -64,20 +73,9 @@ private fun TerminalScreen(
     val settingsStore = GlassesApp.instance.settingsStore
     var fontSize by rememberSaveable { mutableFloatStateOf(settingsStore.loadFontSize()) }
 
-    LaunchedEffect(fontSize) {
-        settingsStore.saveFontSize(fontSize)
-    }
-
-    LaunchedEffect(Unit) {
-        controller.connect()
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            controller.close()
-        }
-    }
-
+    LaunchedEffect(fontSize) { settingsStore.saveFontSize(fontSize) }
+    LaunchedEffect(Unit) { controller.connect() }
+    DisposableEffect(Unit) { onDispose { controller.close() } }
     BackHandler(onBack = goBack)
 
     Column(
@@ -108,16 +106,12 @@ private fun TerminalScreen(
         Spacer(modifier = Modifier.height(4.dp))
         Surface(
             color = Color.Black,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
+            modifier = Modifier.weight(1f).fillMaxWidth()
         ) {
             key(fontSize) {
                 Terminal(
                     terminalEmulator = controller.emulator,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(4.dp),
+                    modifier = Modifier.fillMaxSize().padding(4.dp),
                     typeface = Typeface.MONOSPACE,
                     initialFontSize = fontSize.sp,
                     minFontSize = 6.sp,
