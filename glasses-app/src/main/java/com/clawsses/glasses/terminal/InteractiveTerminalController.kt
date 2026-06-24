@@ -29,41 +29,38 @@ import java.nio.charset.StandardCharsets
 
 class InteractiveTerminalController(
     private val settingsStore: SettingsStore
-) {
+) : TerminalController {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val sessionLock = Mutex()
     private val writeLock = Mutex()
+    private val colorRemapper = AnsiColorRemapper()
 
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
-    val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
+    override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
     private val _statusText = MutableStateFlow("Idle.")
-    val statusText: StateFlow<String> = _statusText.asStateFlow()
+    override val statusText: StateFlow<String> = _statusText.asStateFlow()
 
     private var session: Session? = null
     private var shellChannel: ChannelShell? = null
     private var shellOutput: OutputStream? = null
     private var readerJob: Job? = null
 
-    val emulator: TerminalEmulator = TerminalEmulatorFactory.create(
+    override val emulator: TerminalEmulator = TerminalEmulatorFactory.create(
         looper = Looper.getMainLooper(),
         initialRows = 24,
         initialCols = 80,
-        defaultForeground = Color(0xFFB8FFB8),
+        defaultForeground = Color.White,
         defaultBackground = Color.Black,
         onKeyboardInput = { data ->
-            scope.launch {
-                writeToShell(data)
-            }
+            scope.launch { writeToShell(data) }
         },
         onResize = { dimensions ->
-            scope.launch {
-                resizeShell(dimensions)
-            }
+            scope.launch { resizeShell(dimensions) }
         }
     )
 
-    suspend fun connect(): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun connect(): Result<Unit> = withContext(Dispatchers.IO) {
         sessionLock.withLock {
             val config = settingsStore.loadConfig()
             if (config.host.isBlank() || config.username.isBlank()) {
@@ -126,7 +123,6 @@ class InteractiveTerminalController(
 
                 val newShell = (newSession.openChannel("shell") as ChannelShell).apply {
                     setPtyType("xterm-256color", emulator.dimensions.columns, emulator.dimensions.rows, 0, 0)
-                    setEnv("TERM", "xterm-256color")
                     inputStream = null
                     connect(10_000)
                 }
@@ -141,7 +137,6 @@ class InteractiveTerminalController(
                 _statusText.value = "Connected to ${config.username}@${config.host}"
 
                 startReader(newShell.inputStream)
-                sendInitialAttach(config)
                 Result.success(Unit)
             } catch (e: Exception) {
                 Log.e(TAG, "Interactive SSH connect failed", e)
@@ -162,25 +157,16 @@ class InteractiveTerminalController(
         }
     }
 
-    fun close() {
+    override fun close() {
         disconnectLocked()
         _connectionState.value = ConnectionState.Disconnected
         _statusText.value = "Disconnected."
         scope.cancel()
     }
 
-    private suspend fun sendInitialAttach(config: SshConfig) {
-        val targetSession = settingsStore.loadActiveSession()?.trim().orEmpty()
-        val attachCommand = if (targetSession.isNotBlank()) {
-            "tmux new-session -A -s ${shellQuote(targetSession)}"
-        } else {
-            config.autoAttachCommand.trim().ifBlank { "tmux attach || tmux new" }
-        }
-        writeToShell((attachCommand + "\n").toByteArray(StandardCharsets.UTF_8))
-    }
-
     private fun startReader(input: InputStream) {
         readerJob?.cancel()
+        colorRemapper.reset()
         readerJob = scope.launch {
             val buffer = ByteArray(8192)
             try {
@@ -188,7 +174,8 @@ class InteractiveTerminalController(
                     val count = input.read(buffer)
                     if (count < 0) break
                     if (count > 0) {
-                        emulator.writeInput(buffer, 0, count)
+                        val remapped = colorRemapper.process(buffer, count)
+                        emulator.writeInput(remapped, 0, remapped.size)
                     } else {
                         delay(20)
                     }
@@ -225,22 +212,14 @@ class InteractiveTerminalController(
     private fun disconnectLocked() {
         readerJob?.cancel()
         readerJob = null
-        try {
-            shellChannel?.disconnect()
-        } catch (_: Exception) {
-        }
-        try {
-            session?.disconnect()
-        } catch (_: Exception) {
-        }
+        try { shellChannel?.disconnect() } catch (_: Exception) {}
+        try { session?.disconnect() } catch (_: Exception) {}
         shellOutput = null
         shellChannel = null
         session = null
     }
 
-    private fun shellQuote(value: String): String {
-        return "'" + value.replace("'", "'\"'\"'") + "'"
-    }
+    private fun shellQuote(value: String) = "'" + value.replace("'", "'\"'\"'") + "'"
 
     private companion object {
         const val TAG = "InteractiveTerminal"

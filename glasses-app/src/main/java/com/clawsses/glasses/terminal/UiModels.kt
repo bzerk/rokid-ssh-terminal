@@ -6,15 +6,7 @@ data class SshConfig(
     val username: String = "",
     val password: String = "",
     val privateKey: String = "",
-    val passphrase: String = "",
-    val autoAttachCommand: String = "tmux attach || tmux new"
-)
-
-data class TmuxSessionInfo(
-    val name: String,
-    val windows: Int,
-    val attached: Boolean,
-    val activity: String
+    val passphrase: String = ""
 )
 
 sealed interface ConnectionState {
@@ -26,10 +18,3 @@ sealed interface ConnectionState {
     ) : ConnectionState
     data class Error(val message: String) : ConnectionState
 }
-
-data class TerminalSnapshot(
-    val content: String = "",
-    val commandBuffer: String = "",
-    val lastCommand: String? = null,
-    val statusLine: String = "Not connected."
-)
